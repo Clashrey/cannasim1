@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GROWTH_PHASES, STRAINS, INDIVIDUAL_EQUIPMENT, GLOBAL_EQUIPMENT, QUALITY_GRADES } from '../data/constants';
 import { calculatePlantQuality, calculateYieldMultiplier, updatePlantConditions, calculateRaidRisk } from '../utils/gameLogic';
+import { saveGame, loadGame, hasSave, getSaveInfo, deleteSave } from '../utils/saveSystem';
 
 export default function CannabisSimulator() {
   // Основное состояние игры
@@ -55,6 +56,102 @@ export default function CannabisSimulator() {
   // UI состояние
   const [activeTab, setActiveTab] = useState('greenhouse');
   const [selectedPlot, setSelectedPlot] = useState(null);
+  const [showSaveMenu, setShowSaveMenu] = useState(false);
+  const [saveInfo, setSaveInfo] = useState(null);
+
+  // Загрузка игры при старте
+  useEffect(() => {
+    const savedGame = loadGame();
+    if (savedGame) {
+      setGameState(savedGame.gameState);
+      setGreenhouse(savedGame.greenhouse);
+      setInventory(savedGame.inventory);
+      console.log('🎮 Игра загружена из сохранения');
+    }
+    
+    // Получаем информацию о сохранении
+    setSaveInfo(getSaveInfo());
+  }, []);
+
+  // Автосохранение каждые 30 секунд
+  useEffect(() => {
+    const autoSaveInterval = setInterval(() => {
+      const success = saveGame(gameState, greenhouse, inventory);
+      if (success) {
+        setSaveInfo(getSaveInfo());
+        console.log('💾 Автосохранение выполнено');
+      }
+    }, 30000);
+
+    return () => clearInterval(autoSaveInterval);
+  }, [gameState, greenhouse, inventory]);
+
+  // Ручное сохранение
+  const handleManualSave = () => {
+    const success = saveGame(gameState, greenhouse, inventory);
+    if (success) {
+      setSaveInfo(getSaveInfo());
+      alert('✅ Игра сохранена!');
+    } else {
+      alert('❌ Ошибка сохранения!');
+    }
+  };
+
+  // Сброс игры
+  const handleNewGame = () => {
+    if (confirm('⚠️ Вы уверены? Весь прогресс будет потерян!')) {
+      deleteSave();
+      // Сброс к начальным значениям
+      setGameState({
+        money: 2000,
+        level: 1,
+        experience: 0,
+        day: 1
+      });
+      
+      setGreenhouse({
+        plots: Array(6).fill(null).map((_, i) => ({
+          id: i,
+          plant: null,
+          conditions: { water: 50, light: 30, temp: 60, nutrients: 40, health: 100 },
+          equipment: {
+            pot: null,
+            light: null,
+            drainage: null,
+            reflector: null,
+            ventilation: null,
+            monitoring: null
+          },
+          diseases: []
+        })),
+        globalEquipment: {
+          led_system: false,
+          auto_watering: false,
+          climate_control: false,
+          carbon_filter: false,
+          monitoring_hub: false,
+          ventilation_system: false,
+          security_system: false,
+          backup_power: false
+        }
+      });
+      
+      setInventory({
+        seeds: { thai_stick: 3, northern_lights: 0, sour_diesel: 0 },
+        harvest: { 
+          thai_stick: { A: 0, B: 0, C: 0, D: 0 }, 
+          northern_lights: { A: 0, B: 0, C: 0, D: 0 }, 
+          sour_diesel: { A: 0, B: 0, C: 0, D: 0 } 
+        },
+        individualEquipment: {},
+        globalEquipment: {},
+        fertilizer: 2
+      });
+      
+      setSaveInfo(null);
+      alert('🎮 Новая игра начата!');
+    }
+  };
 
   // Симуляция времени - замедлили в 10 раз
   useEffect(() => {
@@ -182,7 +279,8 @@ export default function CannabisSimulator() {
       )
     }));
   };
-const buySeeds = (strain) => {
+
+  const buySeeds = (strain) => {
     const price = STRAINS[strain].seedPrice;
     if (gameState.money < price) return;
     
@@ -382,7 +480,8 @@ const buySeeds = (strain) => {
       </button>
     ));
   };
-const renderLegalMarket = () => {
+
+  const renderLegalMarket = () => {
     const allHarvest = [];
     Object.entries(inventory.harvest).forEach(([strain, qualities]) => {
       Object.entries(qualities).forEach(([quality, amount]) => {
@@ -467,6 +566,68 @@ const renderLegalMarket = () => {
           <span>⭐ Уровень: {gameState.level}</span>
           <span>🎯 Опыт: {gameState.experience}</span>
         </div>
+        
+        {/* Кнопки сохранения */}
+        <div className="flex justify-center gap-2 mt-4">
+          <button
+            onClick={handleManualSave}
+            className="bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600"
+          >
+            💾 Сохранить
+          </button>
+          <button
+            onClick={() => setShowSaveMenu(!showSaveMenu)}
+            className="bg-gray-500 text-white px-4 py-2 rounded text-sm hover:bg-gray-600"
+          >
+            ⚙️ Игра
+          </button>
+        </div>
+
+        {/* Меню сохранения */}
+        {showSaveMenu && (
+          <div className="mt-4 bg-white border rounded-lg p-4 shadow-lg max-w-md mx-auto">
+            <h3 className="font-bold mb-3">⚙️ Управление игрой</h3>
+            
+            {saveInfo && (
+              <div className="bg-green-50 p-3 rounded mb-3 text-sm">
+                <div className="font-medium">💾 Последнее сохранение:</div>
+                <div>📅 День: {saveInfo.day}</div>
+                <div>💰 Деньги: ฿{saveInfo.money}</div>
+                <div>📊 Уровень: {saveInfo.level}</div>
+                <div className="text-xs text-gray-600 mt-1">
+                  {new Date(saveInfo.timestamp).toLocaleString('ru-RU')}
+                </div>
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <button
+                onClick={handleManualSave}
+                className="w-full bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600"
+              >
+                💾 Сохранить сейчас
+              </button>
+              
+              <button
+                onClick={handleNewGame}
+                className="w-full bg-red-500 text-white px-4 py-2 rounded text-sm hover:bg-red-600"
+              >
+                🔄 Новая игра
+              </button>
+              
+              <button
+                onClick={() => setShowSaveMenu(false)}
+                className="w-full bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm hover:bg-gray-400"
+              >
+                ❌ Закрыть
+              </button>
+            </div>
+            
+            <div className="mt-3 text-xs text-gray-600 bg-gray-50 p-2 rounded">
+              ℹ️ Автосохранение каждые 30 секунд
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Навигация */}
@@ -574,7 +735,8 @@ const renderLegalMarket = () => {
               ))}
             </div>
           </div>
-<div className="bg-white rounded-lg p-4 shadow-md">
+
+          <div className="bg-white rounded-lg p-4 shadow-md">
             <h3 className="font-bold mb-4">🎮 Управление</h3>
             {selectedPlot !== null && (
               <div>
