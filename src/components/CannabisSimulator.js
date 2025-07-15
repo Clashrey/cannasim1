@@ -76,14 +76,28 @@ export default function CannabisSimulator() {
   // Автосохранение каждые 30 секунд
   useEffect(() => {
     const autoSaveInterval = setInterval(() => {
-      const success = saveGame(gameState, greenhouse, inventory);
-      if (success) {
-        setSaveInfo(getSaveInfo());
-        console.log('💾 Автосохранение выполнено');
+      if (gameState.day > 1) { // Сохраняем только если игра началась
+        const success = saveGame(gameState, greenhouse, inventory);
+        if (success) {
+          setSaveInfo(getSaveInfo());
+          console.log('💾 Автосохранение выполнено');
+        }
       }
     }, 30000);
 
     return () => clearInterval(autoSaveInterval);
+  }, [gameState.day]); // Зависим только от дня, чтобы не было лишних пересозданий
+
+  // Сохранение при изменении состояния (более надежно)
+  useEffect(() => {
+    if (gameState.day > 1) { // Не сохраняем начальное состояние
+      const timeoutId = setTimeout(() => {
+        saveGame(gameState, greenhouse, inventory);
+        setSaveInfo(getSaveInfo());
+      }, 1000); // Задержка чтобы не сохранять при каждом изменении
+
+      return () => clearTimeout(timeoutId);
+    }
   }, [gameState, greenhouse, inventory]);
 
   // Ручное сохранение
