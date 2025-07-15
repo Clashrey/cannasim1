@@ -58,6 +58,7 @@ export default function CannabisSimulator() {
   const [selectedPlot, setSelectedPlot] = useState(null);
   const [showSaveMenu, setShowSaveMenu] = useState(false);
   const [saveInfo, setSaveInfo] = useState(null);
+  const [saveStatus, setSaveStatus] = useState(''); // Для показа статуса сохранения
 
   // Загрузка игры при старте
   useEffect(() => {
@@ -102,12 +103,15 @@ export default function CannabisSimulator() {
 
   // Ручное сохранение
   const handleManualSave = () => {
+    setSaveStatus('Сохранение...');
     const success = saveGame(gameState, greenhouse, inventory);
     if (success) {
       setSaveInfo(getSaveInfo());
-      alert('✅ Игра сохранена!');
+      setSaveStatus('✅ Сохранено!');
+      setTimeout(() => setSaveStatus(''), 2000);
     } else {
-      alert('❌ Ошибка сохранения!');
+      setSaveStatus('❌ Ошибка!');
+      setTimeout(() => setSaveStatus(''), 2000);
     }
   };
 
@@ -585,7 +589,7 @@ export default function CannabisSimulator() {
         <div className="flex justify-center gap-2 mt-4">
           <button
             onClick={handleManualSave}
-            className="bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600"
+            className="bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600 relative"
           >
             💾 Сохранить
           </button>
@@ -595,6 +599,11 @@ export default function CannabisSimulator() {
           >
             ⚙️ Игра
           </button>
+          {saveStatus && (
+            <div className="absolute mt-12 bg-white border rounded px-3 py-1 shadow-lg text-sm">
+              {saveStatus}
+            </div>
+          )}
         </div>
 
         {/* Меню сохранения */}
