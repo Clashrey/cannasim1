@@ -32,6 +32,16 @@ export default function CannabisSimulator() {
       led_system: false,
       auto_watering: false,
       climate_control: false,
+      carbon_filter: false,
+      monitoring_hub: false,
+      ventilation_system: false,
+      security_system: false,
+      backup_power: false
+    }
+  });
+
+  // Инвентарь
+  const [inventory, setInventory] = useState({
     seeds: { thai_stick: 3, northern_lights: 0, sour_diesel: 0 },
     harvest: { 
       thai_stick: { A: 0, B: 0, C: 0, D: 0 }, 
@@ -48,7 +58,7 @@ export default function CannabisSimulator() {
   const [selectedPlot, setSelectedPlot] = useState(null);
   const [showSaveMenu, setShowSaveMenu] = useState(false);
   const [saveInfo, setSaveInfo] = useState(null);
-  const [saveStatus, setSaveStatus] = useState(''); // Для показа статуса сохранения
+  const [saveStatus, setSaveStatus] = useState('');
 
   // Загрузка игры при старте
   useEffect(() => {
@@ -57,7 +67,7 @@ export default function CannabisSimulator() {
       setGameState(savedGame.gameState);
       setGreenhouse(savedGame.greenhouse);
       setInventory(savedGame.inventory);
-      console.log('🎮 Игра загружена из сохранения');
+      console.log('🎮 Игра загружена из localStorage');
     }
     
     // Получаем информацию о сохранении
@@ -67,39 +77,12 @@ export default function CannabisSimulator() {
   // Автосохранение каждые 30 секунд
   useEffect(() => {
     const autoSaveInterval = setInterval(() => {
-      if (gameState.day > 1) { // Сохраняем только если игра началась
-        const success = saveGame(gameState, greenhouse, inventory);
-        if (success) {
-          setSaveInfo(getSaveInfo());
-          console.log('💾 Автосохранение выполнено');
-        }
-      }
+      saveGame(gameState, greenhouse, inventory);
+      setSaveInfo(getSaveInfo());
+      console.log('💾 Автосохранение выполнено');
     }, 30000);
 
     return () => clearInterval(autoSaveInterval);
-  }, [gameState.day]); // Зависим только от дня, чтобы не было лишних пересозданий
-
-  // Сохранение при изменении состояния (более надежно)
-  useEffect(() => {
-    if (gameState.day > 1) { // Не сохраняем начальное состояние
-      const timeoutId = setTimeout(() => {
-        saveGame(gameState, greenhouse, inventory);
-        setSaveInfo(getSaveInfo());
-      }, 1000); // Задержка чтобы не сохранять при каждом изменении
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [gameState, greenhouse, inventory]);
-
-  // Ручное сохранение
-  const handleManualSave = () => {
-    setSaveStatus('Сохранение...');
-    const success = saveGame(gameState, greenhouse, inventory);
-    if (success) {
-      setSaveInfo(getSaveInfo());
-      setSaveStatus('✅ Сохранено!');
-return () => clearTimeout(timeoutId);
-    }
   }, [gameState, greenhouse, inventory]);
 
   // Ручное сохранение
@@ -118,50 +101,11 @@ return () => clearTimeout(timeoutId);
 
   // Сброс игры
   const handleNewGame = () => {
-    if (confirm('⚠️ Вы уверены? Весь прогресс будет потерян!')) {
+    if (window.confirm('⚠️ Вы уверены? Весь прогресс будет потерян!')) {
       deleteSave();
       // Сброс к начальным значениям
       setGameState({
         money: 500,
-        level: 1,
-        experience: 0,
-        day: 1
-      });
-      
-      setGreenhouse({
-        plots: Array(6).fill(null).map((_, i) => ({
-          id: i,
-          plant: null,
-          conditions: { water: 50, light: 30, temp: 60, nutrients: 40, health: 100 },
-          equipment: {
-            pot: null,
-            light: null,
-            drainage: null,
-            reflector: null,
-            ventilation: null,
-            monitoring: null
-          },
-          diseases: []
-        })),
-        globalEquipment: {
-          led_system: false,
-          auto_watering: false,
-          climate_control: false,
-          carbon_filter: false,
-      setTimeout(() => setSaveStatus(''), 2000);
-    } else {
-      setSaveStatus('❌ Ошибка!');
-      setTimeout(() => setSaveStatus(''), 2000);
-    }
-  };
-
-  // Сброс игры
-  const handleNewGame = () => {
-    if (confirm('⚠️ Вы уверены? Весь прогресс будет потерян!')) {
-      deleteSave();
-      // Сброс к начальным значениям
-      setGameState({
-        money: 2000,
         level: 1,
         experience: 0,
         day: 1
@@ -626,10 +570,10 @@ return () => clearTimeout(timeoutId);
         </div>
         
         {/* Кнопки сохранения */}
-        <div className="flex justify-center gap-2 mt-4">
+        <div className="flex justify-center gap-2 mt-4 relative">
           <button
             onClick={handleManualSave}
-            className="bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600 relative"
+            className="bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600"
           >
             💾 Сохранить
           </button>
@@ -640,7 +584,7 @@ return () => clearTimeout(timeoutId);
             ⚙️ Игра
           </button>
           {saveStatus && (
-            <div className="absolute mt-12 bg-white border rounded px-3 py-1 shadow-lg text-sm">
+            <div className="absolute top-12 bg-white border rounded px-3 py-1 shadow-lg text-sm z-10">
               {saveStatus}
             </div>
           )}
