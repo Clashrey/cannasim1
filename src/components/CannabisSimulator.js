@@ -6,7 +6,7 @@ import { saveGame, loadGame, hasSave, getSaveInfo, deleteSave } from '../utils/s
 export default function CannabisSimulator() {
   // Основное состояние игры
   const [gameState, setGameState] = useState({
-    money: 2000,
+    money: 500,
     level: 1,
     experience: 0,
     day: 1
@@ -32,16 +32,6 @@ export default function CannabisSimulator() {
       led_system: false,
       auto_watering: false,
       climate_control: false,
-      carbon_filter: false,
-      monitoring_hub: false,
-      ventilation_system: false,
-      security_system: false,
-      backup_power: false
-    }
-  });
-
-  // Инвентарь
-  const [inventory, setInventory] = useState({
     seeds: { thai_stick: 3, northern_lights: 0, sour_diesel: 0 },
     harvest: { 
       thai_stick: { A: 0, B: 0, C: 0, D: 0 }, 
@@ -108,6 +98,56 @@ export default function CannabisSimulator() {
     if (success) {
       setSaveInfo(getSaveInfo());
       setSaveStatus('✅ Сохранено!');
+return () => clearTimeout(timeoutId);
+    }
+  }, [gameState, greenhouse, inventory]);
+
+  // Ручное сохранение
+  const handleManualSave = () => {
+    setSaveStatus('Сохранение...');
+    const success = saveGame(gameState, greenhouse, inventory);
+    if (success) {
+      setSaveInfo(getSaveInfo());
+      setSaveStatus('✅ Сохранено!');
+      setTimeout(() => setSaveStatus(''), 2000);
+    } else {
+      setSaveStatus('❌ Ошибка!');
+      setTimeout(() => setSaveStatus(''), 2000);
+    }
+  };
+
+  // Сброс игры
+  const handleNewGame = () => {
+    if (confirm('⚠️ Вы уверены? Весь прогресс будет потерян!')) {
+      deleteSave();
+      // Сброс к начальным значениям
+      setGameState({
+        money: 500,
+        level: 1,
+        experience: 0,
+        day: 1
+      });
+      
+      setGreenhouse({
+        plots: Array(6).fill(null).map((_, i) => ({
+          id: i,
+          plant: null,
+          conditions: { water: 50, light: 30, temp: 60, nutrients: 40, health: 100 },
+          equipment: {
+            pot: null,
+            light: null,
+            drainage: null,
+            reflector: null,
+            ventilation: null,
+            monitoring: null
+          },
+          diseases: []
+        })),
+        globalEquipment: {
+          led_system: false,
+          auto_watering: false,
+          climate_control: false,
+          carbon_filter: false,
       setTimeout(() => setSaveStatus(''), 2000);
     } else {
       setSaveStatus('❌ Ошибка!');
