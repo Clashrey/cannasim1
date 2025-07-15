@@ -1,8 +1,6 @@
-// Система сохранения игры в памяти (для Claude.ai среды)
+// Система сохранения игры в sessionStorage (для Claude.ai среды)
+const SAVE_KEY = 'cannabis_simulator_save';
 const SAVE_VERSION = '1.0';
-
-// Хранилище в памяти
-let memoryStorage = null;
 
 // Функция сохранения игры
 export const saveGame = (gameState, greenhouse, inventory) => {
@@ -15,31 +13,46 @@ export const saveGame = (gameState, greenhouse, inventory) => {
       inventory
     };
     
-    memoryStorage = saveData;
-    console.log('💾 Игра сохранена в память');
+    // Используем sessionStorage вместо localStorage
+    sessionStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+    console.log('💾 Игра сохранена в sessionStorage');
     return true;
   } catch (error) {
     console.error('Ошибка сохранения игры:', error);
-    return false;
+    // Fallback к памяти если sessionStorage недоступен
+    window.gameBackup = saveData;
+    return true;
   }
 };
 
 // Функция загрузки игры
 export const loadGame = () => {
   try {
-    if (!memoryStorage) return null;
+    let savedData = null;
+    
+    // Пробуем загрузить из sessionStorage
+    try {
+      savedData = sessionStorage.getItem(SAVE_KEY);
+    } catch (e) {
+      // Если sessionStorage недоступен, пробуем fallback
+      savedData = window.gameBackup ? JSON.stringify(window.gameBackup) : null;
+    }
+    
+    if (!savedData) return null;
+    
+    const saveData = JSON.parse(savedData);
     
     // Проверка версии сохранения
-    if (memoryStorage.version !== SAVE_VERSION) {
+    if (saveData.version !== SAVE_VERSION) {
       console.warn('Устаревшая версия сохранения, возможны проблемы совместимости');
     }
     
-    console.log('📂 Игра загружена из памяти');
+    console.log('📂 Игра загружена из сохранения');
     return {
-      gameState: memoryStorage.gameState,
-      greenhouse: memoryStorage.greenhouse,
-      inventory: memoryStorage.inventory,
-      timestamp: memoryStorage.timestamp
+      gameState: saveData.gameState,
+      greenhouse: saveData.greenhouse,
+      inventory: saveData.inventory,
+      timestamp: saveData.timestamp
     };
   } catch (error) {
     console.error('Ошибка загрузки игры:', error);
@@ -50,8 +63,12 @@ export const loadGame = () => {
 // Функция удаления сохранения
 export const deleteSave = () => {
   try {
-    memoryStorage = null;
-    console.log('🗑️ Сохранение удалено из памяти');
+    try {
+      sessionStorage.removeItem(SAVE_KEY);
+    } catch (e) {
+      window.gameBackup = null;
+    }
+    console.log('🗑️ Сохранение удалено');
     return true;
   } catch (error) {
     console.error('Ошибка удаления сохранения:', error);
@@ -61,20 +78,34 @@ export const deleteSave = () => {
 
 // Функция проверки наличия сохранения
 export const hasSave = () => {
-  return memoryStorage !== null;
+  try {
+    const saved = sessionStorage.getItem(SAVE_KEY);
+    return saved !== null;
+  } catch (e) {
+    return window.gameBackup !== null && window.gameBackup !== undefined;
+  }
 };
 
 // Функция получения информации о сохранении
 export const getSaveInfo = () => {
   try {
-    if (!memoryStorage) return null;
+    let savedData = null;
     
+    try {
+      savedData = sessionStorage.getItem(SAVE_KEY);
+    } catch (e) {
+      savedData = window.gameBackup ? JSON.stringify(window.gameBackup) : null;
+    }
+    
+    if (!savedData) return null;
+    
+    const saveData = JSON.parse(savedData);
     return {
-      version: memoryStorage.version,
-      timestamp: memoryStorage.timestamp,
-      day: memoryStorage.gameState?.day || 0,
-      money: memoryStorage.gameState?.money || 0,
-      level: memoryStorage.gameState?.level || 1
+      version: saveData.version,
+      timestamp: saveData.timestamp,
+      day: saveData.gameState?.day || 0,
+      money: saveData.gameState?.money || 0,
+      level: saveData.gameState?.level || 1
     };
   } catch (error) {
     console.error('Ошибка получения информации о сохранении:', error);
@@ -97,9 +128,18 @@ export const setupAutoSave = (gameState, greenhouse, inventory, intervalSeconds 
 // Функция экспорта сохранения в JSON файл
 export const exportSave = () => {
   try {
-    if (!memoryStorage) return null;
+    let savedData = null;
     
-    const dataStr = JSON.stringify(memoryStorage, null, 2);
+    try {
+      savedData = sessionStorage.getItem(SAVE_KEY);
+    } catch (e) {
+      savedData = window.gameBackup ? JSON.stringify(window.gameBackup) : null;
+    }
+    
+    if (!savedData) return null;
+    
+    const saveData = JSON.parse(savedData);
+    const dataStr = JSON.stringify(saveData, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     
     const url = URL.createObjectURL(dataBlob);
@@ -123,7 +163,11 @@ export const importSave = (file) => {
     reader.onload = (e) => {
       try {
         const saveData = JSON.parse(e.target.result);
-        memoryStorage = saveData;
+        try {
+          sessionStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+        } catch (err) {
+          window.gameBackup = saveData;
+        }
         resolve(saveData);
       } catch (error) {
         reject(error);
