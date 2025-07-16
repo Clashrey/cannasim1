@@ -1,4 +1,59 @@
-import React, { useState, useEffect } from 'react';
+// Компоненты UI
+  const PlotComponent = ({ plot, onSelect }) => {
+    const getPlotColor = () => {
+      if (!plot.plant) return 'bg-gray-300';
+      
+      // Цвет в зависимости от здоровья растения
+      if (plot.conditions.health < 30) return 'bg-red-300 animate-pulse'; // Критическое состояние
+      if (plot.conditions.health < 60) return 'bg-orange-200'; // Плохое состояние
+      if (plot.conditions.health < 80) return 'bg-yellow-200'; // Среднее состояние
+      return 'bg-green-200'; // Хорошее состояние
+    };
+
+    const getStatusIndicators = () => {
+      if (!plot.plant) return [];
+      
+      const indicators = [];
+      const phase = plot.plant.phase;
+      const idealConditions = GROWTH_PHASES[phase]?.idealConditions;
+      
+      if (idealConditions) {
+        // Проверяем критические состояния
+        if (plot.conditions.water < 20) indicators.push('💀'); // Засуха
+        else if (plot.conditions.water > 90) indicators.push('🌊'); // Переувлажнение
+        else if (plot.conditions.water < idealConditions.water[0]) indicators.push('🏜️'); // Маловато воды
+        
+        if (plot.conditions.nutrients > 95) indicators.push('🔥'); // Ожог питательными веществами
+        else if (plot.conditions.nutrients < 10) indicators.push('🍃'); // Голодание
+        
+        if (plot.conditions.temp > 90) indicators.push('🌡️'); // Тепловой стресс
+        
+        if (plot.conditions.health < 50) indicators.push('🤒'); // Болезнь
+      }
+      
+      return indicators;
+    };
+
+    const getEquipmentIcons = () => {
+      const icons = [];
+      if (plot.equipment.pot) icons.push('📦');
+      if (plot.equipment.light) icons.push('💡');
+      if (plot.equipment.drainage) icons.push('🚰');
+      if (plot.equipment.reflector) icons.push('🪞');
+      if (plot.equipment.ventilation) icons.push('🌪️');
+      if (plot.equipment.monitoring) icons.push('📊');
+      return icons;
+    };
+
+    return (
+      <div 
+        className={`w-28 h-28 rounded-lg border-2 border-gray-400 ${getPlotColor()} cursor-pointer flex flex-col items-center justify-center text-xs relative`}
+        onClick={() => onSelect(plot.id)}
+      >
+        {plot.plant ? (
+          <React.Fragment>
+            <div className="text-2xl">{GROWTH_PHASES[plot.plant.phase].icon}</div>
+            <div className="font-medium"import React, { useState, useEffect } from 'react';
 import { GROWTH_PHASES, STRAINS, INDIVIDUAL_EQUIPMENT, GLOBAL_EQUIPMENT, QUALITY_GRADES } from '../data/constants';
 import { calculatePlantQuality, calculateYieldMultiplier, updatePlantConditions, calculateRaidRisk } from '../utils/gameLogic';
 import { saveGame, loadGame, hasSave, getSaveInfo, deleteSave } from '../utils/saveSystem';
@@ -165,18 +220,164 @@ export default function CannabisSimulator() {
     }
   };
 
-  // Симуляция времени - замедлили в 10 раз
+  // Симуляция времени с реалистичным потреблением ресурсов
   useEffect(() => {
     const gameTimer = setInterval(() => {
       setGameState(prev => ({ ...prev, day: prev.day + 1 }));
       
       setGreenhouse(prev => ({
         ...prev,
-        plots: prev.plots.map(plot => 
-          updatePlantConditions(plot, prev.globalEquipment, GROWTH_PHASES, INDIVIDUAL_EQUIPMENT)
-        )
+        plots: prev.plots.map(plot => {
+          if (!plot.plant) return plot;
+
+          const strain = STRAINS[plot.plant.strain];
+          const phase = plot.plant.phase;
+          const globalEquip = prev.globalEquipment;
+          
+          // Базовое потребление по фазам (% за 10 секунд)
+          const consumptionRates = {
+            seed: { water: 1, nutrients: 0.5 },
+            sprout: { water: 2, nutrients: 1 },
+            veg: { water: 4, nutrients: 3 },
+            flower: { water: 3, nutrients: 2.5 },
+            harvest: { water: 1, nutrients: 0 }
+          };
+
+          let waterConsumption = consumptionRates[phase]?.water || 1;
+          let nutrientConsumption = consumptionRates[phase]?.nutrients || 1;
+
+          // Модификаторы потребления
+          // Температура влияет на потребление воды
+          if (plot.conditions.temp > 80) {
+            waterConsumption *= 1.5; // +50% при высокой температуре
+          }
+
+          // Размер горшка влияет на потребление
+          if (plot.equipment.pot === 'pot_10l' || plot.equipment.pot === 'pot_smart_20l') {
+            waterConsumption *= 0.8; // Большие горшки удерживают влагу лучше
+          }
+
+          // Вентиляция ускоряет испарение
+          if (plot.equipment.ventilation || globalEquip.ventilation_system) {
+            waterConsumption *= 1.3;
+          }
+
+          // Автополив компенсирует потребление
+          if (globalEquip.auto_watering && plot.plant) {
+            const idealWater = GROWTH_PHASES[phase]?.idealConditions?.water;
+            if (idealWater) {
+              const targetWater = (idealWater[0] + idealWater[1]) / 2;
+              if (plot.conditions.water < targetWater) {
+                waterConsumption = -2; // Автополив добавляет воду
+              } else {
+                waterConsumption *= 0.2; // Снижает естественное испарение
+              }
+            }
+          }
+
+          // Умный климат-контроль стабилизирует температуру
+          let tempChange = Math.random() * 2 - 1; // Случайное изменение ±1%
+          if (globalEquip.climate_control && plot.plant) {
+            const idealTemp = GROWTH_PHASES[phase]?.idealConditions?.temp;
+            if (idealTemp) {
+              const targetTemp = (idealTemp[0] + idealTemp[1]) / 2;
+              tempChange = (targetTemp - plot.conditions.temp) * 0.1; // Плавное приближение к цели
+            }
+          }
+
+          // Умная LED система оптимизирует освещение
+          let lightLevel = plot.conditions.light;
+          if (globalEquip.led_system && plot.plant) {
+            const idealLight = GROWTH_PHASES[phase]?.idealConditions?.light;
+            if (idealLight) {
+              lightLevel = (idealLight[0] + idealLight[1]) / 2;
+            }
+          } else if (plot.equipment.light) {
+            const lightPower = INDIVIDUAL_EQUIPMENT[plot.equipment.light]?.effect || 30;
+            lightLevel = lightPower;
+            if (plot.equipment.reflector) {
+              lightLevel *= 1.3;
+            }
+          } else {
+            lightLevel = Math.max(20, lightLevel - Math.random() * 2); // Естественное затухание без ламп
+          }
+
+          // Применяем изменения условий
+          const newConditions = {
+            water: Math.max(0, Math.min(100, plot.conditions.water - waterConsumption)),
+            light: Math.max(0, Math.min(100, lightLevel)),
+            temp: Math.max(0, Math.min(100, plot.conditions.temp + tempChange)),
+            nutrients: Math.max(0, plot.conditions.nutrients - nutrientConsumption),
+            health: plot.conditions.health
+          };
+
+          // Расчет влияния условий на здоровье
+          const idealConditions = GROWTH_PHASES[phase]?.idealConditions;
+          let healthChange = 0;
+
+          if (idealConditions) {
+            // Проверяем каждый параметр
+            const waterOK = newConditions.water >= idealConditions.water[0] && newConditions.water <= idealConditions.water[1];
+            const lightOK = newConditions.light >= idealConditions.light[0] && newConditions.light <= idealConditions.light[1];
+            const tempOK = newConditions.temp >= idealConditions.temp[0] && newConditions.temp <= idealConditions.temp[1];
+            const nutrientsOK = newConditions.nutrients >= idealConditions.nutrients[0] && newConditions.nutrients <= idealConditions.nutrients[1];
+
+            // Здоровье изменяется в зависимости от соблюдения условий
+            const optimalCount = [waterOK, lightOK, tempOK, nutrientsOK].filter(Boolean).length;
+            
+            if (optimalCount === 4) {
+              healthChange = 0.1; // Идеальные условия - здоровье растет
+            } else if (optimalCount >= 2) {
+              healthChange = 0; // Нормальные условия - стабильно
+            } else {
+              healthChange = -0.5 - (4 - optimalCount) * 0.3; // Плохие условия - теряет здоровье
+            }
+
+            // Критические состояния
+            if (newConditions.water < 20) healthChange -= 2; // Засуха
+            if (newConditions.water > 90) healthChange -= 1; // Переувлажнение
+            if (newConditions.nutrients > 95) healthChange -= 3; // Ожог питательными веществами
+            if (newConditions.temp > 90) healthChange -= 2; // Тепловой стресс
+          }
+
+          // Бонусы от оборудования
+          if (plot.equipment.drainage && newConditions.water > 85) {
+            healthChange += 0.5; // Дренаж помогает при переувлажнении
+          }
+          if (plot.equipment.ventilation) {
+            healthChange += 0.2; // Вентиляция улучшает общее состояние
+          }
+          if (globalEquip.monitoring_hub) {
+            healthChange += 0.3; // Мониторинг предотвращает проблемы
+          }
+          if (globalEquip.backup_power) {
+            healthChange += 0.2; // Стабильное питание
+          }
+
+          // Прогрессия фаз роста
+          const now = Date.now();
+          let newPlant = { ...plot.plant };
+          
+          if (now - plot.plant.plantedAt > plot.plant.currentPhaseDuration) {
+            const phases = Object.keys(GROWTH_PHASES);
+            const currentIndex = phases.indexOf(plot.plant.phase);
+            if (currentIndex < phases.length - 1) {
+              newPlant.phase = phases[currentIndex + 1];
+              newPlant.currentPhaseDuration += strain.growTimes[currentIndex + 1] || GROWTH_PHASES[phases[currentIndex + 1]].duration;
+            }
+          }
+
+          // Применяем изменение здоровья
+          newConditions.health = Math.max(0, Math.min(100, newConditions.health + healthChange));
+
+          return {
+            ...plot,
+            plant: newPlant,
+            conditions: newConditions
+          };
+        })
       }));
-    }, 10000);
+    }, 10000); // Каждые 10 секунд = 1 игровой день
 
     return () => clearInterval(gameTimer);
   }, []);
@@ -256,6 +457,21 @@ export default function CannabisSimulator() {
   };
 
   const waterPlant = (plotId) => {
+    const plot = greenhouse.plots[plotId];
+    
+    // Нельзя поливать если уже слишком влажно
+    if (plot.conditions.water > 75) {
+      alert('⚠️ Почва еще влажная! Переувлажнение может привести к корневой гнили.');
+      return;
+    }
+    
+    // Количество воды зависит от размера горшка
+    let waterAmount = 20; // Базовое количество
+    
+    if (plot.equipment.pot === 'pot_5l') waterAmount = 25;
+    else if (plot.equipment.pot === 'pot_10l') waterAmount = 35;
+    else if (plot.equipment.pot === 'pot_smart_20l') waterAmount = 40;
+    
     setGreenhouse(prev => ({
       ...prev,
       plots: prev.plots.map(plot => 
@@ -263,7 +479,7 @@ export default function CannabisSimulator() {
           ...plot,
           conditions: {
             ...plot.conditions,
-            water: Math.min(100, plot.conditions.water + 30)
+            water: Math.min(100, plot.conditions.water + waterAmount)
           }
         } : plot
       )
@@ -271,7 +487,18 @@ export default function CannabisSimulator() {
   };
 
   const addNutrients = (plotId) => {
-    if (inventory.fertilizer <= 0) return;
+    if (inventory.fertilizer <= 0) {
+      alert('⚠️ Нет удобрений! Купите в магазине.');
+      return;
+    }
+    
+    const plot = greenhouse.plots[plotId];
+    
+    // Нельзя перекармливать
+    if (plot.conditions.nutrients > 85) {
+      alert('⚠️ Растение уже получило достаточно питательных веществ! Перекорм может вызвать ожог.');
+      return;
+    }
     
     setInventory(prev => ({
       ...prev,
@@ -285,11 +512,89 @@ export default function CannabisSimulator() {
           ...plot,
           conditions: {
             ...plot.conditions,
-            nutrients: Math.min(100, plot.conditions.nutrients + 25)
+            nutrients: Math.min(100, plot.conditions.nutrients + 30)
           }
         } : plot
       )
     }));
+  };
+
+  // Новая функция: промывка корней при передозировке
+  const flushRoots = (plotId) => {
+    const plot = greenhouse.plots[plotId];
+    
+    if (plot.conditions.nutrients < 70) {
+      alert('ℹ️ Промывка не нужна - уровень питательных веществ нормальный.');
+      return;
+    }
+    
+    setGreenhouse(prev => ({
+      ...prev,
+      plots: prev.plots.map(plot => 
+        plot.id === plotId ? {
+          ...plot,
+          conditions: {
+            ...plot.conditions,
+            nutrients: 20, // Сбрасываем до минимума
+            water: Math.min(100, plot.conditions.water + 15) // Добавляем немного воды
+          }
+        } : plot
+      )
+    }));
+    
+    alert('💧 Корни промыты! Питательные вещества сброшены до безопасного уровня.');
+  };
+
+  // Функция использования лекарств
+  const useMedicine = (plotId, medicineType) => {
+    if (!inventory.medicines[medicineType] || inventory.medicines[medicineType] <= 0) {
+      alert('⚠️ Нет нужного лекарства! Купите в магазине.');
+      return;
+    }
+    
+    setInventory(prev => ({
+      ...prev,
+      medicines: {
+        ...prev.medicines,
+        [medicineType]: prev.medicines[medicineType] - 1
+      }
+    }));
+    
+    const plot = greenhouse.plots[plotId];
+    
+    // Эффекты лекарств
+    let healthBonus = 0;
+    let message = '';
+    
+    switch(medicineType) {
+      case 'fungicide':
+        healthBonus = 15;
+        message = '🍄 Фунгицид применен! Грибковые заболевания вылечены.';
+        break;
+      case 'insecticide':
+        healthBonus = 10;
+        message = '🐛 Инсектицид применен! Вредители уничтожены.';
+        break;
+      case 'root_stimulator':
+        healthBonus = 20;
+        message = '🌱 Стимулятор корней применен! Растение восстанавливается.';
+        break;
+    }
+    
+    setGreenhouse(prev => ({
+      ...prev,
+      plots: prev.plots.map(plot => 
+        plot.id === plotId ? {
+          ...plot,
+          conditions: {
+            ...plot.conditions,
+            health: Math.min(100, plot.conditions.health + healthBonus)
+          }
+        } : plot
+      )
+    }));
+    
+    alert(message);
   };
 
   const buySeeds = (strain) => {
@@ -450,6 +755,15 @@ export default function CannabisSimulator() {
             <div className="text-2xl">{GROWTH_PHASES[plot.plant.phase].icon}</div>
             <div className="font-medium">{STRAINS[plot.plant.strain].name.split(' ')[0]}</div>
             <div>❤️{Math.floor(plot.conditions.health)}%</div>
+            
+            {/* Индикаторы проблем */}
+            {getStatusIndicators().length > 0 && (
+              <div className="absolute top-1 right-1 flex">
+                {getStatusIndicators().map((indicator, index) => (
+                  <span key={index} className="text-xs">{indicator}</span>
+                ))}
+              </div>
+            )}
           </React.Fragment>
         ) : (
           <div className="text-gray-500 text-center">
@@ -830,6 +1144,8 @@ export default function CannabisSimulator() {
                           greenhouse.plots[selectedPlot].conditions.water <= GROWTH_PHASES[greenhouse.plots[selectedPlot].plant.phase].idealConditions.water[1] ? 
                           'text-green-600' : 'text-red-600'}`}>
                           💧 {Math.floor(greenhouse.plots[selectedPlot].conditions.water)}%
+                          {greenhouse.plots[selectedPlot].conditions.water < 30 && <span className="ml-1">📉</span>}
+                          {greenhouse.plots[selectedPlot].conditions.water > 85 && <span className="ml-1">📈</span>}
                         </div>
                         <div className={`${greenhouse.plots[selectedPlot].conditions.light >= GROWTH_PHASES[greenhouse.plots[selectedPlot].plant.phase].idealConditions.light[0] && 
                           greenhouse.plots[selectedPlot].conditions.light <= GROWTH_PHASES[greenhouse.plots[selectedPlot].plant.phase].idealConditions.light[1] ? 
@@ -840,30 +1156,101 @@ export default function CannabisSimulator() {
                           greenhouse.plots[selectedPlot].conditions.temp <= GROWTH_PHASES[greenhouse.plots[selectedPlot].plant.phase].idealConditions.temp[1] ? 
                           'text-green-600' : 'text-red-600'}`}>
                           🌡️ {Math.floor(greenhouse.plots[selectedPlot].conditions.temp)}%
+                          {greenhouse.plots[selectedPlot].conditions.temp > 85 && <span className="ml-1">🔥</span>}
                         </div>
                         <div className={`${greenhouse.plots[selectedPlot].conditions.nutrients >= GROWTH_PHASES[greenhouse.plots[selectedPlot].plant.phase].idealConditions.nutrients[0] && 
                           greenhouse.plots[selectedPlot].conditions.nutrients <= GROWTH_PHASES[greenhouse.plots[selectedPlot].plant.phase].idealConditions.nutrients[1] ? 
                           'text-green-600' : 'text-red-600'}`}>
                           🧪 {Math.floor(greenhouse.plots[selectedPlot].conditions.nutrients)}%
+                          {greenhouse.plots[selectedPlot].conditions.nutrients < 15 && <span className="ml-1">📉</span>}
+                          {greenhouse.plots[selectedPlot].conditions.nutrients > 90 && <span className="ml-1 text-red-600">⚠️</span>}
                         </div>
                       </div>
-                      <div className="mt-1">❤️ Здоровье: {Math.floor(greenhouse.plots[selectedPlot].conditions.health)}%</div>
+                      <div className="mt-1 flex items-center">
+                        <span>❤️ Здоровье: {Math.floor(greenhouse.plots[selectedPlot].conditions.health)}%</span>
+                        {greenhouse.plots[selectedPlot].conditions.health < 50 && <span className="ml-2 text-red-600 animate-pulse">🚨</span>}
+                        {greenhouse.plots[selectedPlot].conditions.health < 30 && <span className="ml-1 text-red-600">💀</span>}
+                      </div>
+
+                      {/* Потребление ресурсов */}
+                      {greenhouse.plots[selectedPlot].plant && (
+                        <div className="mt-2 p-2 bg-blue-50 rounded text-xs">
+                          <div className="font-semibold mb-1">📉 Потребление в час:</div>
+                          <div className="grid grid-cols-2 gap-1 text-xs">
+                            <div>💧 Вода: -{greenhouse.plots[selectedPlot].plant.phase === 'veg' ? '24%' : 
+                                                greenhouse.plots[selectedPlot].plant.phase === 'flower' ? '18%' :
+                                                greenhouse.plots[selectedPlot].plant.phase === 'sprout' ? '12%' : '6%'}</div>
+                            <div>🧪 Питание: -{greenhouse.plots[selectedPlot].plant.phase === 'veg' ? '18%' : 
+                                                   greenhouse.plots[selectedPlot].plant.phase === 'flower' ? '15%' :
+                                                   greenhouse.plots[selectedPlot].plant.phase === 'sprout' ? '6%' : '3%'}</div>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-2 mt-4">
                       <button 
                         onClick={() => waterPlant(selectedPlot)}
-                        className="w-full bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+                        disabled={greenhouse.plots[selectedPlot].conditions.water > 75}
+                        className="w-full bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                        title={greenhouse.plots[selectedPlot].conditions.water > 75 ? "Почва еще влажная" : "Полить растение"}
                       >
-                        💧 Полить (+30% воды)
+                        💧 Полить {greenhouse.plots[selectedPlot].conditions.water > 75 ? "(слишком влажно)" : "(+20-40% воды)"}
                       </button>
+                      
                       <button 
                         onClick={() => addNutrients(selectedPlot)}
-                        disabled={inventory.fertilizer <= 0}
-                        className="w-full bg-green-500 text-white px-3 py-1 rounded text-sm disabled:bg-gray-300 hover:bg-green-600"
+                        disabled={inventory.fertilizer <= 0 || greenhouse.plots[selectedPlot].conditions.nutrients > 85}
+                        className="w-full bg-green-500 text-white px-3 py-1 rounded text-sm disabled:bg-gray-300 hover:bg-green-600 disabled:cursor-not-allowed"
+                        title={greenhouse.plots[selectedPlot].conditions.nutrients > 85 ? "Риск перекорма" : "Добавить удобрения"}
                       >
-                        🧪 Удобрить ({inventory.fertilizer})
+                        🧪 Удобрить ({inventory.fertilizer}) {greenhouse.plots[selectedPlot].conditions.nutrients > 85 ? "(перекорм!)" : ""}
                       </button>
+
+                      {/* Промывка корней при передозировке */}
+                      {greenhouse.plots[selectedPlot].conditions.nutrients > 90 && (
+                        <button 
+                          onClick={() => flushRoots(selectedPlot)}
+                          className="w-full bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600"
+                        >
+                          💧 Промыть корни (сброс питательных веществ)
+                        </button>
+                      )}
+
+                      {/* Лекарства */}
+                      {greenhouse.plots[selectedPlot].conditions.health < 80 && (
+                        <div className="border-t pt-2 mt-2">
+                          <div className="text-xs font-semibold mb-2 text-red-600">🏥 Лечение:</div>
+                          
+                          {inventory.medicines?.fungicide > 0 && (
+                            <button 
+                              onClick={() => useMedicine(selectedPlot, 'fungicide')}
+                              className="w-full bg-orange-500 text-white px-3 py-1 rounded text-xs mb-1 hover:bg-orange-600"
+                            >
+                              🍄 Фунгицид ({inventory.medicines.fungicide}) - +15 здоровья
+                            </button>
+                          )}
+                          
+                          {inventory.medicines?.insecticide > 0 && (
+                            <button 
+                              onClick={() => useMedicine(selectedPlot, 'insecticide')}
+                              className="w-full bg-red-500 text-white px-3 py-1 rounded text-xs mb-1 hover:bg-red-600"
+                            >
+                              🐛 Инсектицид ({inventory.medicines.insecticide}) - +10 здоровья
+                            </button>
+                          )}
+                          
+                          {inventory.medicines?.root_stimulator > 0 && (
+                            <button 
+                              onClick={() => useMedicine(selectedPlot, 'root_stimulator')}
+                              className="w-full bg-purple-500 text-white px-3 py-1 rounded text-xs mb-1 hover:bg-purple-600"
+                            >
+                              🌱 Стимулятор ({inventory.medicines.root_stimulator}) - +20 здоровья
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      
                       {greenhouse.plots[selectedPlot].plant.phase === 'harvest' && (
                         <button 
                           onClick={() => harvestPlant(selectedPlot)}
