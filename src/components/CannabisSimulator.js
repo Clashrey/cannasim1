@@ -53,7 +53,43 @@
         {plot.plant ? (
           <React.Fragment>
             <div className="text-2xl">{GROWTH_PHASES[plot.plant.phase].icon}</div>
-            <div className="font-medium"import React, { useState, useEffect } from 'react';
+            <div className="font-medium">{STRAINS[plot.plant.strain].name.split(' ')[0]}</div>
+            <div>❤️{Math.floor(plot.conditions.health)}%</div>
+            
+            {/* Индикаторы проблем */}
+            {getStatusIndicators().length > 0 && (
+              <div className="absolute top-1 right-1 flex">
+                {getStatusIndicators().map((indicator, index) => (
+                  <span key={index} className="text-xs">{indicator}</span>
+                ))}
+              </div>
+            )}
+          </React.Fragment>
+        ) : (
+          <div className="text-gray-500 text-center">
+            {plot.equipment.pot ? (
+              <div>
+                <div className="text-green-600 font-medium">📦 Готов</div>
+                <div className="text-xs">к посадке</div>
+              </div>
+            ) : (
+              <div>
+                <div className="text-red-600 font-medium">Пусто</div>
+                <div className="text-xs">нужен горшок</div>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Индикаторы оборудования */}
+        <div className="absolute bottom-1 right-1 flex flex-wrap gap-1">
+          {getEquipmentIcons().map((icon, index) => (
+            <span key={index} className="text-xs">{icon}</span>
+          ))}
+        </div>
+      </div>
+    );
+  };import React, { useState, useEffect } from 'react';
 import { GROWTH_PHASES, STRAINS, INDIVIDUAL_EQUIPMENT, GLOBAL_EQUIPMENT, QUALITY_GRADES } from '../data/constants';
 import { calculatePlantQuality, calculateYieldMultiplier, updatePlantConditions, calculateRaidRisk } from '../utils/gameLogic';
 import { saveGame, loadGame, hasSave, getSaveInfo, deleteSave } from '../utils/saveSystem';
@@ -436,9 +472,16 @@ export default function CannabisSimulator() {
       }
     }));
     
+    const experienceGain = 50 + (quality === 'A' ? 50 : quality === 'B' ? 25 : 0);
     setGameState(prev => ({
       ...prev,
-      experience: prev.experience + 50 + (quality === 'A' ? 50 : quality === 'B' ? 25 : 0)
+      experience: prev.experience + experienceGain
+    }));
+
+    // Обновляем статистику
+    setGameStats(prev => ({
+      ...prev,
+      totalHarvests: prev.totalHarvests + 1
     }));
     
     alert(`Урожай собран!\nКоличество: ${finalYield}г\nКачество: ${QUALITY_GRADES[quality].name}\nМодификатор цены: ${Math.floor(QUALITY_GRADES[quality].multiplier * 100)}%`);
