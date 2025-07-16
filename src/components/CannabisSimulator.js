@@ -6,7 +6,7 @@ import { saveGame, loadGame, hasSave, getSaveInfo, deleteSave } from '../utils/s
 export default function CannabisSimulator() {
   // Основное состояние игры
   const [gameState, setGameState] = useState({
-    money: 500,
+    money: 10000, // Увеличенный стартовый капитал
     level: 1,
     experience: 0,
     day: 1
@@ -50,7 +50,12 @@ export default function CannabisSimulator() {
     },
     individualEquipment: {},
     globalEquipment: {},
-    fertilizer: 2
+    fertilizer: 0, // Убираем стартовые удобрения
+    medicines: {
+      fungicide: 0,
+      insecticide: 0,
+      root_stimulator: 0
+    }
   });
 
   // UI состояние
@@ -105,7 +110,7 @@ export default function CannabisSimulator() {
       deleteSave();
       // Сброс к начальным значениям
       setGameState({
-        money: 500,
+        money: 10000, // Обновленный стартовый капитал
         level: 1,
         experience: 0,
         day: 1
@@ -147,7 +152,12 @@ export default function CannabisSimulator() {
         },
         individualEquipment: {},
         globalEquipment: {},
-        fertilizer: 2
+        fertilizer: 0,
+        medicines: {
+          fungicide: 0,
+          insecticide: 0,
+          root_stimulator: 0
+        }
       });
       
       setSaveInfo(null);
@@ -303,10 +313,21 @@ export default function CannabisSimulator() {
     setGameState(prev => ({ ...prev, money: prev.money - price }));
     
     if (item.consumable) {
-      setInventory(prev => ({
-        ...prev,
-        fertilizer: prev.fertilizer + 5
-      }));
+      // Обработка расходников
+      if (item.type === 'nutrients') {
+        setInventory(prev => ({
+          ...prev,
+          fertilizer: prev.fertilizer + 1
+        }));
+      } else if (item.type === 'medicine') {
+        setInventory(prev => ({
+          ...prev,
+          medicines: { 
+            ...prev.medicines, 
+            [itemKey]: (prev.medicines[itemKey] || 0) + 1 
+          }
+        }));
+      }
     } else if (isGlobal) {
       setInventory(prev => ({
         ...prev,
@@ -563,7 +584,7 @@ export default function CannabisSimulator() {
       <div className="text-center mb-6">
         <h1 className="text-3xl font-bold text-green-800 mb-2">🌿 Cannabis Simulator Thailand 🇹🇭</h1>
         <div className="flex justify-center space-x-6 text-sm">
-          <span>💰 Деньги: ฿{gameState.money}</span>
+          <span>💰 Деньги: ฿{gameState.money.toLocaleString()}</span>
           <span>📅 День: {gameState.day}</span>
           <span>⭐ Уровень: {gameState.level}</span>
           <span>🎯 Опыт: {gameState.experience}</span>
@@ -924,7 +945,7 @@ export default function CannabisSimulator() {
                     disabled={gameState.money < strain.seedPrice}
                     className="bg-green-500 text-white px-3 py-1 rounded text-sm disabled:bg-gray-300"
                   >
-                    ฿{strain.seedPrice}
+                    ฿{strain.seedPrice.toLocaleString()}
                   </button>
                 </div>
               </div>
@@ -933,52 +954,11 @@ export default function CannabisSimulator() {
 
           <div className="bg-white rounded-lg p-4 shadow-md">
             <h3 className="font-bold mb-4">🔧 Индивидуальное оборудование</h3>
-            {Object.entries(INDIVIDUAL_EQUIPMENT).map(([key, item]) => (
-              <div key={key} className="border-b pb-2 mb-2 last:border-b-0">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <div className="font-semibold text-sm">{item.name}</div>
-                    <div className="text-xs text-gray-600">{item.description}</div>
-                  </div>
-                  <button
-                    onClick={() => buyItem(key, false)}
-                    disabled={gameState.money < item.price}
-                    className="bg-blue-500 text-white px-2 py-1 rounded text-xs disabled:bg-gray-300"
-                  >
-                    ฿{item.price}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="bg-white rounded-lg p-4 shadow-md">
-            <h3 className="font-bold mb-4">⚡ Глобальные системы</h3>
-            {Object.entries(GLOBAL_EQUIPMENT).filter(([key, item]) => !item.consumable).map(([key, item]) => (
-              <div key={key} className="border-b pb-3 mb-3 last:border-b-0">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1 mr-3">
-                    <div className="font-semibold text-sm">{item.name}</div>
-                    <div className="text-xs text-gray-600 mb-2">{item.description}</div>
-                    {greenhouse.globalEquipment[key] === true && (
-                      <div className="text-xs text-green-600 font-bold">✅ Установлена и активна</div>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => buyItem(key, true)}
-                    disabled={gameState.money < item.price || greenhouse.globalEquipment[key] === true}
-                    className="bg-purple-500 text-white px-3 py-1 rounded text-sm disabled:bg-gray-300 hover:bg-purple-600"
-                  >
-                    ฿{item.price}
-                  </button>
-                </div>
-              </div>
-            ))}
             
-            {/* Расходные материалы отдельно */}
-            <div className="border-t pt-3 mt-3">
-              <h4 className="font-semibold text-sm mb-2">🧪 Расходные материалы</h4>
-              {Object.entries(GLOBAL_EQUIPMENT).filter(([key, item]) => item.consumable).map(([key, item]) => (
+            {/* Горшки */}
+            <div className="mb-4">
+              <h4 className="font-semibold text-sm mb-2 text-green-700">📦 Горшки</h4>
+              {Object.entries(INDIVIDUAL_EQUIPMENT).filter(([key, item]) => item.type === 'pot').map(([key, item]) => (
                 <div key={key} className="border-b pb-2 mb-2 last:border-b-0">
                   <div className="flex justify-between items-center">
                     <div>
@@ -986,15 +966,166 @@ export default function CannabisSimulator() {
                       <div className="text-xs text-gray-600">{item.description}</div>
                     </div>
                     <button
-                      onClick={() => buyItem(key, true)}
+                      onClick={() => buyItem(key, false)}
                       disabled={gameState.money < item.price}
-                      className="bg-green-500 text-white px-2 py-1 rounded text-xs disabled:bg-gray-300 hover:bg-green-600"
+                      className="bg-blue-500 text-white px-2 py-1 rounded text-xs disabled:bg-gray-300"
                     >
-                      ฿{item.price}
+                      ฿{item.price.toLocaleString()}
                     </button>
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Освещение */}
+            <div className="mb-4">
+              <h4 className="font-semibold text-sm mb-2 text-yellow-700">💡 Освещение</h4>
+              {Object.entries(INDIVIDUAL_EQUIPMENT).filter(([key, item]) => item.type === 'light').map(([key, item]) => (
+                <div key={key} className="border-b pb-2 mb-2 last:border-b-0">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="font-semibold text-sm">{item.name}</div>
+                      <div className="text-xs text-gray-600">{item.description}</div>
+                    </div>
+                    <button
+                      onClick={() => buyItem(key, false)}
+                      disabled={gameState.money < item.price}
+                      className="bg-blue-500 text-white px-2 py-1 rounded text-xs disabled:bg-gray-300"
+                    >
+                      ฿{item.price.toLocaleString()}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Остальное оборудование */}
+            <div>
+              <h4 className="font-semibold text-sm mb-2 text-purple-700">🔧 Аксессуары</h4>
+              {Object.entries(INDIVIDUAL_EQUIPMENT).filter(([key, item]) => !['pot', 'light'].includes(item.type)).map(([key, item]) => (
+                <div key={key} className="border-b pb-2 mb-2 last:border-b-0">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="font-semibold text-sm">{item.name}</div>
+                      <div className="text-xs text-gray-600">{item.description}</div>
+                    </div>
+                    <button
+                      onClick={() => buyItem(key, false)}
+                      disabled={gameState.money < item.price}
+                      className="bg-blue-500 text-white px-2 py-1 rounded text-xs disabled:bg-gray-300"
+                    >
+                      ฿{item.price.toLocaleString()}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg p-4 shadow-md">
+            <h3 className="font-bold mb-4">⚡ Глобальные системы</h3>
+            
+            {/* Системы автоматизации */}
+            <div className="mb-4">
+              <h4 className="font-semibold text-sm mb-2 text-purple-700">🤖 Автоматизация</h4>
+              {Object.entries(GLOBAL_EQUIPMENT).filter(([key, item]) => 
+                !item.consumable && ['global_water', 'global_light', 'global_climate', 'monitoring'].includes(item.type)
+              ).map(([key, item]) => (
+                <div key={key} className="border-b pb-2 mb-2 last:border-b-0">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 mr-2">
+                      <div className="font-semibold text-xs">{item.name}</div>
+                      <div className="text-xs text-gray-600 mb-1">{item.description}</div>
+                      {greenhouse.globalEquipment[key] === true && (
+                        <div className="text-xs text-green-600 font-bold">✅ Активна</div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => buyItem(key, true)}
+                      disabled={gameState.money < item.price || greenhouse.globalEquipment[key] === true}
+                      className="bg-purple-500 text-white px-2 py-1 rounded text-xs disabled:bg-gray-300 hover:bg-purple-600"
+                    >
+                      ฿{item.price.toLocaleString()}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Безопасность и дополнительно */}
+            <div className="mb-4">
+              <h4 className="font-semibold text-sm mb-2 text-red-700">🔒 Безопасность</h4>
+              {Object.entries(GLOBAL_EQUIPMENT).filter(([key, item]) => 
+                !item.consumable && ['security', 'stealth', 'ventilation', 'power', 'health'].includes(item.type)
+              ).map(([key, item]) => (
+                <div key={key} className="border-b pb-2 mb-2 last:border-b-0">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 mr-2">
+                      <div className="font-semibold text-xs">{item.name}</div>
+                      <div className="text-xs text-gray-600 mb-1">{item.description}</div>
+                      {greenhouse.globalEquipment[key] === true && (
+                        <div className="text-xs text-green-600 font-bold">✅ Активна</div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => buyItem(key, true)}
+                      disabled={gameState.money < item.price || greenhouse.globalEquipment[key] === true}
+                      className="bg-red-500 text-white px-2 py-1 rounded text-xs disabled:bg-gray-300 hover:bg-red-600"
+                    >
+                      ฿{item.price.toLocaleString()}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Расходные материалы */}
+            <div className="border-t pt-3">
+              <h4 className="font-semibold text-sm mb-2 text-green-700">🧪 Расходники</h4>
+              
+              {/* Удобрения */}
+              <div className="mb-3">
+                <div className="text-xs font-medium text-gray-700 mb-1">Удобрения:</div>
+                {Object.entries(GLOBAL_EQUIPMENT).filter(([key, item]) => 
+                  item.consumable && item.type === 'nutrients'
+                ).map(([key, item]) => (
+                  <div key={key} className="flex justify-between items-center mb-1">
+                    <div className="flex-1">
+                      <div className="font-medium text-xs">{item.name}</div>
+                      <div className="text-xs text-gray-600">{item.description}</div>
+                    </div>
+                    <button
+                      onClick={() => buyItem(key, true)}
+                      disabled={gameState.money < item.price}
+                      className="bg-green-500 text-white px-2 py-1 rounded text-xs disabled:bg-gray-300 hover:bg-green-600 ml-2"
+                    >
+                      ฿{item.price}
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Лекарства */}
+              <div>
+                <div className="text-xs font-medium text-gray-700 mb-1">Лечение:</div>
+                {Object.entries(GLOBAL_EQUIPMENT).filter(([key, item]) => 
+                  item.consumable && item.type === 'medicine'
+                ).map(([key, item]) => (
+                  <div key={key} className="flex justify-between items-center mb-1">
+                    <div className="flex-1">
+                      <div className="font-medium text-xs">{item.name}</div>
+                      <div className="text-xs text-gray-600">{item.description}</div>
+                    </div>
+                    <button
+                      onClick={() => buyItem(key, true)}
+                      disabled={gameState.money < item.price}
+                      className="bg-blue-500 text-white px-2 py-1 rounded text-xs disabled:bg-gray-300 hover:bg-blue-600 ml-2"
+                    >
+                      ฿{item.price}
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -1036,32 +1167,56 @@ export default function CannabisSimulator() {
           </div>
 
           <div className="bg-white rounded-lg p-4 shadow-md">
-            <h3 className="font-bold mb-4">🔧 Оборудование</h3>
+            <h3 className="font-bold mb-4">🔧 Оборудование и расходники</h3>
+            
             <div className="mb-4">
-              <div className="flex justify-between">
-                <span>Удобрения</span>
-                <span>{inventory.fertilizer}</span>
+              <h4 className="font-semibold mb-2">💊 Расходники:</h4>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span>🧪 Удобрения</span>
+                  <span>{inventory.fertilizer}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>🍄 Фунгицид</span>
+                  <span>{inventory.medicines?.fungicide || 0}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>🐛 Инсектицид</span>
+                  <span>{inventory.medicines?.insecticide || 0}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>🌱 Стимулятор корней</span>
+                  <span>{inventory.medicines?.root_stimulator || 0}</span>
+                </div>
               </div>
             </div>
             
             <div className="mb-4">
-              <h4 className="font-semibold mb-2">Индивидуальное:</h4>
-              {Object.entries(inventory.individualEquipment).map(([item, count]) => (
-                <div key={item} className="flex justify-between">
-                  <span>{INDIVIDUAL_EQUIPMENT[item]?.name}</span>
-                  <span>{count}</span>
-                </div>
-              ))}
+              <h4 className="font-semibold mb-2">🔧 Индивидуальное:</h4>
+              {Object.entries(inventory.individualEquipment || {}).length > 0 ? (
+                Object.entries(inventory.individualEquipment).map(([item, count]) => (
+                  <div key={item} className="flex justify-between text-sm">
+                    <span>{INDIVIDUAL_EQUIPMENT[item]?.name}</span>
+                    <span>{count}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="text-gray-500 text-sm">Нет оборудования</div>
+              )}
             </div>
 
             <div>
-              <h4 className="font-semibold mb-2">Глобальное:</h4>
-              {Object.entries(inventory.globalEquipment).map(([item, count]) => (
-                <div key={item} className="flex justify-between">
-                  <span>{GLOBAL_EQUIPMENT[item]?.name}</span>
-                  <span>{count}</span>
-                </div>
-              ))}
+              <h4 className="font-semibold mb-2">🌐 Глобальное:</h4>
+              {Object.entries(inventory.globalEquipment || {}).length > 0 ? (
+                Object.entries(inventory.globalEquipment).map(([item, count]) => (
+                  <div key={item} className="flex justify-between text-sm">
+                    <span>{GLOBAL_EQUIPMENT[item]?.name}</span>
+                    <span>{count}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="text-gray-500 text-sm">Нет систем</div>
+              )}
             </div>
           </div>
         </div>
