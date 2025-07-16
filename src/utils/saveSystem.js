@@ -1,4 +1,4 @@
-// Система сохранения игры в sessionStorage (для Claude.ai среды)
+// Система сохранения игры в localStorage
 const SAVE_KEY = 'cannabis_simulator_save';
 const SAVE_VERSION = '1.0';
 
@@ -13,31 +13,18 @@ export const saveGame = (gameState, greenhouse, inventory) => {
       inventory
     };
     
-    // Используем sessionStorage вместо localStorage
-    sessionStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
-    console.log('💾 Игра сохранена в sessionStorage');
+    localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
     return true;
   } catch (error) {
     console.error('Ошибка сохранения игры:', error);
-    // Fallback к памяти если sessionStorage недоступен
-    window.gameBackup = saveData;
-    return true;
+    return false;
   }
 };
 
 // Функция загрузки игры
 export const loadGame = () => {
   try {
-    let savedData = null;
-    
-    // Пробуем загрузить из sessionStorage
-    try {
-      savedData = sessionStorage.getItem(SAVE_KEY);
-    } catch (e) {
-      // Если sessionStorage недоступен, пробуем fallback
-      savedData = window.gameBackup ? JSON.stringify(window.gameBackup) : null;
-    }
-    
+    const savedData = localStorage.getItem(SAVE_KEY);
     if (!savedData) return null;
     
     const saveData = JSON.parse(savedData);
@@ -47,7 +34,6 @@ export const loadGame = () => {
       console.warn('Устаревшая версия сохранения, возможны проблемы совместимости');
     }
     
-    console.log('📂 Игра загружена из сохранения');
     return {
       gameState: saveData.gameState,
       greenhouse: saveData.greenhouse,
@@ -63,12 +49,7 @@ export const loadGame = () => {
 // Функция удаления сохранения
 export const deleteSave = () => {
   try {
-    try {
-      sessionStorage.removeItem(SAVE_KEY);
-    } catch (e) {
-      window.gameBackup = null;
-    }
-    console.log('🗑️ Сохранение удалено');
+    localStorage.removeItem(SAVE_KEY);
     return true;
   } catch (error) {
     console.error('Ошибка удаления сохранения:', error);
@@ -78,25 +59,13 @@ export const deleteSave = () => {
 
 // Функция проверки наличия сохранения
 export const hasSave = () => {
-  try {
-    const saved = sessionStorage.getItem(SAVE_KEY);
-    return saved !== null;
-  } catch (e) {
-    return window.gameBackup !== null && window.gameBackup !== undefined;
-  }
+  return localStorage.getItem(SAVE_KEY) !== null;
 };
 
 // Функция получения информации о сохранении
 export const getSaveInfo = () => {
   try {
-    let savedData = null;
-    
-    try {
-      savedData = sessionStorage.getItem(SAVE_KEY);
-    } catch (e) {
-      savedData = window.gameBackup ? JSON.stringify(window.gameBackup) : null;
-    }
-    
+    const savedData = localStorage.getItem(SAVE_KEY);
     if (!savedData) return null;
     
     const saveData = JSON.parse(savedData);
@@ -128,14 +97,7 @@ export const setupAutoSave = (gameState, greenhouse, inventory, intervalSeconds 
 // Функция экспорта сохранения в JSON файл
 export const exportSave = () => {
   try {
-    let savedData = null;
-    
-    try {
-      savedData = sessionStorage.getItem(SAVE_KEY);
-    } catch (e) {
-      savedData = window.gameBackup ? JSON.stringify(window.gameBackup) : null;
-    }
-    
+    const savedData = localStorage.getItem(SAVE_KEY);
     if (!savedData) return null;
     
     const saveData = JSON.parse(savedData);
@@ -163,11 +125,7 @@ export const importSave = (file) => {
     reader.onload = (e) => {
       try {
         const saveData = JSON.parse(e.target.result);
-        try {
-          sessionStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
-        } catch (err) {
-          window.gameBackup = saveData;
-        }
+        localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
         resolve(saveData);
       } catch (error) {
         reject(error);
